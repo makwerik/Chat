@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Чат</title>
+    <style>
+        /* Сброс стилей и базовые настройки */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #e9ecef;
+        }
+
+        #app {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            height: 100%;
+            max-width: 600px;
+            max-height: 90vh;
+            margin: 20px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        h1 {
+            font-size: 2rem;
+            color: #333;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        label {
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #555;
+        }
+
+        input {
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 100%;
+            margin-bottom: 12px;
+            font-size: 1rem;
+        }
+
+        button {
+            padding: 12px 16px;
+            border: none;
+            border-radius: 4px;
+            background-color: #007bff;
+            color: #fff;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            width: 100%;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        .error {
+            color: red;
+            margin-bottom: 12px;
+            display: none;
+            font-size: 0.9rem;
+        }
+
+        #chat {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        #messages {
+            list-style-type: none;
+            padding: 10px;
+            margin: 0;
+            flex: 1;
+            overflow-y: auto;
+            background: #f8f9fa;
+            border-top: 1px solid #ccc;
+            border-bottom: 1px solid #ccc;
+        }
+
+        #messages li {
+            padding: 10px;
+            border-radius: 4px;
+            background: #fff;
+            margin-bottom: 8px;
+            word-wrap: break-word;
+        }
+
+        #messages li.admin {
+            background: #e9f5f1;
+            border: 1px solid #c3e6cb;
+        }
+
+        #messages li .timestamp {
+            font-size: 0.75rem;
+            color: #868e96;
+            display: block;
+            text-align: right;
+            margin-top: 5px;
+        }
+
+        .admin-button-container {
+            display: flex;
+            justify-content: center;
+        }
+
+        .admin-button-container button {
+            background-color: #28a745;
+            border-color: #28a745;
+        }
+
+        .admin-button-container button:hover {
+            background-color: #218838;
+            border-color: #1e7e34;
+        }
+
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 1.5rem;
+            }
+
+            input, button {
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <h1>Чаплыген Рулет!</h1>
+        <form id="nameForm">
+            <label for="nameInput">Введите ваше имя:</label>
+            <input id="nameInput" type="text" autocomplete="off" required />
+            <button type="submit">Войти в чат</button>
+            <div id="nameError" class="error">Имя занято.</div>
+            <div class="admin-button-container">
+                <button type="button" id="adminButton">Войти как администратор</button>
+            </div>
+        </form>
+        <form id="adminLoginForm" style="display: none;">
+            <label for="adminLogin">Логин:</label>
+            <input id="adminLogin" type="text" placeholder="Логин" required />
+            <label for="adminPassword">Пароль:</label>
+            <input id="adminPassword" type="password" placeholder="Пароль" required />
+            <button type="submit">Войти как администратор</button>
+            <div id="adminError" class="error">Неверные учетные данные администратора.</div>
+        </form>
+        <div id="chat" style="display: none;">
+            <ul id="messages">
+                <!-- Здесь будут отображаться сообщения -->
+            </ul>
+            <form id="messageForm">
+                <input id="messageInput" type="text" autocomplete="off" placeholder="Введите ваше сообщение..." required />
+                <button type="submit">Отправить</button>
+            </form>
+        </div>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const nameForm = document.getElementById('nameForm');
+            const nameInput = document.getElementById('nameInput');
+            const adminLoginForm = document.getElementById('adminLoginForm');
+            const adminLogin = document.getElementById('adminLogin');
+            const adminPassword = document.getElementById('adminPassword');
+            const adminError = document.getElementById('adminError');
+            const chatDiv = document.getElementById('chat');
+            const messageForm = document.getElementById('messageForm');
+            const messageInput = document.getElementById('messageInput');
+            const messages = document.getElementById('messages');
+            const nameError = document.getElementById('nameError');
+            const adminButton = document.getElementById('adminButton');
+            let ws;
+            let username = '';
+            let isAdmin = false;
+
+            // Обработчик отправки формы для входа
+            nameForm.onsubmit = function(event) {
+                event.preventDefault();
+                username = nameInput.value.trim();
+                if (username) {
+                    ws = new WebSocket('wss://' + location.host + '/ws');  // Обратите внимание на 'wss'
+                    ws.onopen = function() {
+                        ws.send(JSON.stringify({ type: 'join', name: username }));
+                    };
+                    ws.onmessage = function(event) {
+                        const data = JSON.parse(event.data);
+                        if (data.type === 'error' && data.message === 'name_taken') {
+                            nameError.style.display = 'block';
+                            ws.close();
+                        } else if (data.type === 'success' && data.message === 'joined') {
+                            nameError.style.display = 'none';
+                            chatDiv.style.display = 'flex';
+                            nameForm.style.display = 'none';
+                            adminLoginForm.style.display = 'none';
+                        } else if (data.type === 'message') {
+                            const message = document.createElement('li');
+                            message.innerHTML = `${data.content} <span class="timestamp">${data.time}</span>`;
+                            message.setAttribute('data-id', data.id);
+                            if (data.isAdmin) {
+                                message.classList.add('admin');
+                            }
+                            messages.appendChild(message);
+                            messages.scrollTop = messages.scrollHeight; // Автоскролл вниз
+                        } else if (data.type === 'delete') {
+                            const messageToDelete = document.querySelector(`li[data-id="${data.messageId}"]`);
+                            if (messageToDelete) {
+                                messageToDelete.remove();
+                            }
+                        } else if (data.type === 'block') {
+                            alert(`Вы были заблокированы администратором и не можете отправлять сообщения.`);
+                        }
+                    };
+                }
+            };
+
+            // Переключение между формой пользователя и админа
+            adminButton.onclick = function() {
+                nameForm.style.display = 'none';
+                adminLoginForm.style.display = 'flex';
+            };
+
+            // Обработчик отправки формы для входа как администратор
+            adminLoginForm.onsubmit = function(event) {
+                event.preventDefault();
+                const login = adminLogin.value.trim();
+                const password = adminPassword.value.trim();
+                if (login && password) {
+                    ws = new WebSocket('wss://' + location.host + '/ws');  // Обратите внимание на 'wss'
+                    ws.onopen = function() {
+                        ws.send(JSON.stringify({ type: 'admin_login', login: login, password: password }));
+                    };
+                    ws.onmessage = function(event) {
+                        const data = JSON.parse(event.data);
+                        if (data.type === 'success' && data.message === 'admin_logged_in') {
+                            isAdmin = true;
+                            adminLoginForm.style.display = 'none';
+                            chatDiv.style.display = 'flex';
+                            nameForm.style.display = 'none';
+                        } else if (data.type === 'error' && data.message === 'invalid_credentials') {
+                            adminError.style.display = 'block';
+                            ws.close();
+                        } else if (data.type === 'message') {
+                            const message = document.createElement('li');
+                            message.innerHTML = `${data.content} <span class="timestamp">${data.time}</span>`;
+                            message.setAttribute('data-id', data.id);
+
+                            const deleteButton = document.createElement('button');
+                            deleteButton.textContent = 'Удалить';
+                            deleteButton.onclick = function() {
+                                ws.send(JSON.stringify({ type: 'delete', messageId: data.id }));
+                            };
+
+                            const blockButton = document.createElement('button');
+                            blockButton.textContent = 'Заблокировать';
+                            blockButton.onclick = function() {
+                                ws.send(JSON.stringify({ type: 'block', name: data.content.split(': ')[0] }));
+                            };
+
+                            message.appendChild(deleteButton);
+                            message.appendChild(blockButton);
+                            messages.appendChild(message);
+                            messages.scrollTop = messages.scrollHeight; // Автоскролл вниз
+                        }
+                    };
+                }
+            };
+
+            // Обработчик отправки сообщения
+            messageForm.onsubmit = function(event) {
+                event.preventDefault();
+                const message = messageInput.value.trim();
+                if (message) {
+                    ws.send(JSON.stringify({ type: 'message', name: username, content: message }));
+                    messageInput.value = '';
+                }
+            };
+        });
+    </script>
+</body>
+</html>
